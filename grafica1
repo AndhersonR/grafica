@@ -1,0 +1,320 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.datatransfer.StringSelection;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
+public class IPSubnetCalculator extends JFrame {
+    private JTextField ipField;
+    private JTextField netmaskField;
+    private JTextArea outputArea;
+
+    public IPSubnetCalculator() {
+        setTitle("Calculadora de Subred");
+        setSize(800, 600);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+
+        // Create main panel with GridBagLayout
+        JPanel panel = new JPanel(new GridBagLayout());
+        panel.setBackground(Color.CYAN);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(1, 15, 15, 15);
+
+        // Title
+        JLabel titleLabel = new JLabel("CALCULADORA DE IP");
+        titleLabel.setFont(new Font("Time New Roman", Font.BOLD, 25));
+        titleLabel.setForeground(Color.BLACK);
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.gridwidth = 3;
+        gbc.anchor = GridBagConstraints.CENTER;
+        panel.add(titleLabel, gbc);
+
+        // IP Address label and field
+        gbc.gridwidth = 1;
+        gbc.anchor = GridBagConstraints.EAST;
+        gbc.gridy = 1;
+        gbc.gridx = 0;
+        panel.add(new JLabel("Dirección IP:"), gbc);
+
+        ipField = new JTextField(20);
+        gbc.gridx = 1;
+        gbc.anchor = GridBagConstraints.WEST;
+        panel.add(ipField, gbc);
+
+        // Netmask label and field
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        gbc.anchor = GridBagConstraints.EAST;
+        panel.add(new JLabel("Máscara de Subred:"), gbc);
+
+        netmaskField = new JTextField(20);
+        gbc.gridx = 1;
+        gbc.anchor = GridBagConstraints.WEST;
+        panel.add(netmaskField, gbc);
+
+        // Calculate button
+        JButton calculateButton = new JButton("Calcular");
+        gbc.gridx = 0;
+        gbc.gridy = 3;
+        gbc.anchor = GridBagConstraints.CENTER;
+        panel.add(calculateButton, gbc);
+
+        // Clear button
+        JButton clearButton = new JButton("Limpiar");
+        gbc.gridx = 1;
+        panel.add(clearButton, gbc);
+
+        // Output area
+        outputArea = new JTextArea(20, 50);
+        outputArea.setEditable(false);
+        outputArea.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+        outputArea.setBackground(Color.WHITE);
+        gbc.gridx = 0;
+        gbc.gridy = 4;
+        gbc.gridwidth = 2;
+        gbc.anchor = GridBagConstraints.CENTER;
+        panel.add(new JScrollPane(outputArea), gbc);
+
+        // Help button
+        JButton helpButton = new JButton("Ayuda");
+        gbc.gridx = 0;
+        gbc.gridy = 5;
+        gbc.gridwidth = 1;
+        gbc.anchor = GridBagConstraints.WEST;
+        panel.add(helpButton, gbc);
+
+        // Copy button
+        JButton copyButton = new JButton("Copiar");
+        gbc.gridx = 1;
+        gbc.anchor = GridBagConstraints.EAST;
+        panel.add(copyButton, gbc);
+
+        // Add action listeners
+        calculateButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                String ipAddress = ipField.getText();
+                String netmaskInput = netmaskField.getText();
+                try {
+                    String result = calculateSubnetDetails(ipAddress, netmaskInput);
+                    outputArea.setText(result);
+                } catch (Exception ex) {
+                    outputArea.setText("Error: " + ex.getMessage());
+                }
+            }
+        });
+
+        clearButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                ipField.setText("");
+                netmaskField.setText("");
+                outputArea.setText("");
+            }
+        });
+
+        helpButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                JOptionPane.showMessageDialog(panel, "Ingrese la dirección IP y la máscara de subred para calcular los detalles de la subred.", "Ayuda", JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+
+        copyButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                StringSelection stringSelection = new StringSelection(outputArea.getText());
+                Toolkit.getDefaultToolkit().getSystemClipboard().setContents(stringSelection, null);
+            }
+        });
+
+        add(panel);
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            IPSubnetCalculator calculator = new IPSubnetCalculator();
+            calculator.setVisible(true);
+        });
+    }
+
+    private String calculateSubnetDetails(String ipAddress, String netmaskInput) throws UnknownHostException, IllegalArgumentException {
+        InetAddress inetAddress = InetAddress.getByName(ipAddress);
+        byte[] addressBytes = inetAddress.getAddress();
+
+        int[] address = new int[4];
+        for (int i = 0; i < 4; i++) {
+            address[i] = addressBytes[i] & 0xFF;
+        }
+
+        int netmask;
+        String netmaskIPFormat;
+        if (netmaskInput.contains(".")) {
+            netmask = convertNetmaskToCIDRFormat(netmaskInput);
+            netmaskIPFormat = netmaskInput;
+        } else {
+            netmask = Integer.parseInt(netmaskInput);
+            netmaskIPFormat = convertCIDRToNetmaskFormat(netmask);
+        }
+
+        if (netmask < 0 || netmask > 32) {
+            throw new IllegalArgumentException("Máscara de subred inválida: debe estar entre 0 y 32.");
+        }
+
+        int[] netmaskBytes = calculateNetmaskBytes(netmask);
+        int[] wildcardMask = calculateWildcardMaskBytes(netmaskBytes);
+        int[] networkAddress = calculateNetworkAddressBytes(address, netmaskBytes);
+        int[] broadcastAddress = calculateBroadcastAddressBytes(networkAddress, netmaskBytes);
+        int numIPs = calculateNumberOfIPs(netmask);
+        String ipClass = determineIPClass(address);
+        boolean isPrivate = isPrivateIPAddress(address);
+
+        StringBuilder result = new StringBuilder();
+        result.append("Address:      \t").append(ipAddress).append("\t").append(toBinaryString(address)).append("\n");
+        result.append("Netmask:      \t").append(netmaskIPFormat).append(" = ").append(netmask).append("\t").append(toBinaryString(netmaskBytes)).append("\n");
+        result.append("Wildcard:     \t").append(toIPAddressString(wildcardMask)).append("\t").append(toBinaryString(wildcardMask)).append("\n");
+        result.append("=>\n");
+        result.append("Network:      \t").append(toIPAddressString(networkAddress)).append("/").append(netmask).append("\t").append(toBinaryString(networkAddress)).append("\n");
+        result.append("HostMin:      \t").append(toIPAddressString(incrementIPAddress(networkAddress))).append("\t").append(toBinaryString(incrementIPAddress(networkAddress))).append("\n");
+        result.append("HostMax:      \t").append(toIPAddressString(decrementIPAddress(broadcastAddress))).append("\t").append(toBinaryString(decrementIPAddress(broadcastAddress))).append("\n");
+        result.append("Broadcast:    \t").append(toIPAddressString(broadcastAddress)).append("\t").append(toBinaryString(broadcastAddress)).append("\n");
+        result.append("Hosts/Net:    \t").append(numIPs).append("\t").append(ipClass).append(isPrivate ? ", Private" : ", Public").append(" Internet\n");
+
+        return result.toString();
+    }
+
+    private static int convertNetmaskToCIDRFormat(String netmask) throws NumberFormatException {
+        String[] netmaskParts = netmask.split("\\.");
+        if (netmaskParts.length != 4) {
+            throw new NumberFormatException("Formato de máscara de subred inválido.");
+        }
+
+        int cidr = 0;
+        for (String part : netmaskParts) {
+            int value = Integer.parseInt(part);
+            if (value < 0 || value > 255) {
+                throw new NumberFormatException("Parte de la máscara de subred fuera de rango (0-255).");
+            }
+            while (value > 0) {
+                value &= value - 1;
+                cidr++;
+            }
+        }
+        return cidr;
+    }
+
+    private static String convertCIDRToNetmaskFormat(int cidr) {
+        int mask = 0xffffffff << (32 - cidr);
+        return ((mask >>> 24) & 0xFF) + "." +
+               ((mask >>> 16) & 0xFF) + "." +
+               ((mask >>> 8) & 0xFF) + "." +
+               (mask & 0xFF);
+    }
+
+    private static int[] calculateNetmaskBytes(int netmask) {
+        int[] netmaskBytes = new int[4];
+        for (int i = 0; i < 4; i++) {
+            if (netmask >= 8) {
+                netmaskBytes[i] = 255;
+                netmask -= 8;
+            } else {
+                netmaskBytes[i] = (0xFF << (8 - netmask)) & 0xFF;
+                netmask = 0;
+            }
+        }
+        return netmaskBytes;
+    }
+
+    private static int[] calculateWildcardMaskBytes(int[] netmaskBytes) {
+        int[] wildcardMask = new int[4];
+        for (int i = 0; i < 4; i++) {
+            wildcardMask[i] = 255 - netmaskBytes[i];
+        }
+        return wildcardMask;
+    }
+
+    private static int[] calculateNetworkAddressBytes(int[] address, int[] netmaskBytes) {
+        int[] networkAddress = new int[4];
+        for (int i = 0; i < 4; i++) {
+            networkAddress[i] = address[i] & netmaskBytes[i];
+        }
+        return networkAddress;
+    }
+
+    private static int[] calculateBroadcastAddressBytes(int[] networkAddress, int[] netmaskBytes) {
+        int[] broadcastAddress = new int[4];
+        for (int i = 0; i < 4; i++) {
+            broadcastAddress[i] = networkAddress[i] | (255 - netmaskBytes[i]);
+        }
+        return broadcastAddress;
+    }
+
+    private static int[] incrementIPAddress(int[] address) {
+        int[] newAddress = address.clone();
+        for (int i = 3; i >= 0; i--) {
+            if (newAddress[i] < 255) {
+                newAddress[i]++;
+                break;
+            } else {
+                newAddress[i] = 0;
+            }
+        }
+        return newAddress;
+    }
+
+    private static int[] decrementIPAddress(int[] address) {
+        int[] newAddress = address.clone();
+        for (int i = 3; i >= 0; i--) {
+            if (newAddress[i] > 0) {
+                newAddress[i]--;
+                break;
+            } else {
+                newAddress[i] = 255;
+            }
+        }
+        return newAddress;
+    }
+
+    private static int calculateNumberOfIPs(int netmask) {
+        return (int) Math.pow(2, 32 - netmask) - 2;
+    }
+
+    private static String determineIPClass(int[] address) {
+        int firstOctet = address[0];
+        if (firstOctet <= 127) {
+            return "Class A";
+        } else if (firstOctet <= 191) {
+            return "Class B";
+        } else if (firstOctet <= 223) {
+            return "Class C";
+        } else if (firstOctet <= 239) {
+            return "Class D (Multicast)";
+        } else {
+            return "Class E (Experimental)";
+        }
+    }
+
+    private static boolean isPrivateIPAddress(int[] address) {
+        int firstOctet = address[0];
+        int secondOctet = address[1];
+        return (firstOctet == 10) ||
+               (firstOctet == 172 && (secondOctet >= 16 && secondOctet <= 31)) ||
+               (firstOctet == 192 && secondOctet == 168);
+    }
+
+    private static String toIPAddressString(int[] bytes) {
+        return bytes[0] + "." + bytes[1] + "." + bytes[2] + "." + bytes[3];
+    }
+
+    private static String toBinaryString(int[] bytes) {
+        StringBuilder binary = new StringBuilder();
+        for (int b : bytes) {
+            binary.append(String.format("%8s", Integer.toBinaryString(b)).replace(' ', '0')).append(".");
+        }
+        return binary.substring(0, binary.length() - 1);
+    }
+}
